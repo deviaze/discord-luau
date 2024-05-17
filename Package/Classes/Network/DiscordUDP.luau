@@ -2,10 +2,11 @@ local Construct = require("../../Utils/Construct")
 
 local Future = require("../../Vendor/Future")
 local Signal = require("../../Vendor/Signal")
-local Console = require("../../Vendor/Console")
 
 local Net = require("../../Std/Net")
 local Task = require("../../Std/Task")
+
+local Logger = require("../../Singletons/Logger")
 
 --[=[
 	@class Network.DiscordUDP
@@ -84,12 +85,10 @@ function DiscordUDP.Interface.new(publicUdp: string)
 		onSocketDead = Signal.new(),
 
 		socketUrl = nil,
-
-		reporter = Console.new("🪁 DiscordUDP"),
 	}, DiscordUDP.Prototype)
 
 	self.socketActiveChanged:connect(function(state)
-		self.reporter:debug(`Discord UDP Socket {(state and "Connected") or "Disconnected"} [{self.socketUrl or "unknown"}]`)
+		Logger.debug(`Discord UDP Socket {(state and "Connected") or "Disconnected"} [{self.socketUrl or "unknown"}]`)
 	end)
 
 	return self
@@ -103,8 +102,6 @@ export type DiscordUDP = typeof(DiscordUDP.Prototype) & {
 	onSocketDead: Signal.Signal<number?>,
 
 	socketInstance: Net.WebSocket?,
-
-	reporter: Console.Console,
 
 	socketUrl: string?,
 	socketActive: boolean,

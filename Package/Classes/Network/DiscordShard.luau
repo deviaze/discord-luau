@@ -7,13 +7,14 @@ local WebsocketEvents = require("../../Enums/WebsocketEvents")
 local Construct = require("../../Utils/Construct")
 
 local Future = require("../../Vendor/Future")
-local Console = require("../../Vendor/Console")
 local Signal = require("../../Vendor/Signal")
 
 local DiscordWebsocket = require("DiscordWebsocket")
 
 local Process = require("../../Std/Process")
 local Task = require("../../Std/Task")
+
+local Logger = require("../../Singletons/Logger")
 
 local LIBRARY_IDENTIFIER = "DiscordLuau"
 
@@ -38,9 +39,9 @@ function DiscordShard.Prototype.observeWebsocketErrors(self: DiscordShard)
 		elseif closeCode == WebsocketCloseCodes.DecodeError then
 			self:reconnectAsync()
 		elseif closeCode == WebsocketCloseCodes.NotAuthenticated then
-			self.reporter:error(`Something has gone terribly wrong with Discord-Luau.. please create an issue! [{closeCode}]`)
+			Logger.critical(`Something has gone terribly wrong with Discord-Luau.. please create an issue! [{closeCode}]`)
 		elseif closeCode == WebsocketCloseCodes.AuthenticationFailed then
-			self.reporter:warn(`Failed to authenticate with the Discord API, is your token correct?`)
+			Logger.warn(`Failed to authenticate with the Discord API, is your token correct?`)
 		elseif closeCode == WebsocketCloseCodes.AlreadyAuthenticated then
 			self:reconnectAsync()
 		elseif closeCode == WebsocketCloseCodes.InvalidSequence then
@@ -50,13 +51,13 @@ function DiscordShard.Prototype.observeWebsocketErrors(self: DiscordShard)
 		elseif closeCode == WebsocketCloseCodes.SessionTimedOut then
 			self:reconnectAsync()
 		elseif closeCode == WebsocketCloseCodes.InvalidShard then
-			self.reporter:error(`Something has gone terribly wrong with Discord-Luau.. please create an issue! [{closeCode}]`)
+			Logger.critical(`Something has gone terribly wrong with Discord-Luau.. please create an issue! [{closeCode}]`)
 		elseif closeCode == WebsocketCloseCodes.InvalidAPIVersion then
-			self.reporter:error(`Something has gone terribly wrong with Discord-Luau.. please create an issue! [{closeCode}]`)
+			Logger.critical(`Something has gone terribly wrong with Discord-Luau.. please create an issue! [{closeCode}]`)
 		elseif closeCode == WebsocketCloseCodes.InvalidIntents then
-			self.reporter:error(`Something has gone terribly wrong with Discord-Luau.. please create an issue! [{closeCode}]`)
+			Logger.critical(`Something has gone terribly wrong with Discord-Luau.. please create an issue! [{closeCode}]`)
 		elseif closeCode == WebsocketCloseCodes.DisallowedIntents then
-			self.reporter:warn(`Discord Bot intents are invalid, are you sure the bot has the chosen intents enabled?`)
+			Logger.warn(`Discord Bot intents are invalid, are you sure the bot has the chosen intents enabled?`)
 		end
 	end))
 end
@@ -66,7 +67,7 @@ function DiscordShard.Prototype.observeWebsocketEvents(self: DiscordShard)
 		if eventName == WebsocketEvents.Ready then
 			local websocketVersion = self.discordClient.discordGateway:getApiVersion()
 
-			self.reporter:log(`DiscordShard is active - id: "{data.sessionId}"`)
+			Logger.log(`DiscordShard is active - id: "{data.sessionId}"`)
 
 			self.resumeSessionId = data.sessionId
 			self.resumeGatewayUrl = `{data.resumeGatewayUrl}/?v={websocketVersion}`
@@ -88,14 +89,14 @@ function DiscordShard.Prototype.observeWebsocketOperations(self: DiscordShard)
 				self:heartbeatIn(math.random(self.heartbeatInterval / 2, self.heartbeatInterval))
 			end)
 		elseif operationCode == WebsocketOperationCodes.Heartbeat then
-			self.reporter:log(`Discord Websocket requested heartbeat, sending heartbeat!`)
+			Logger.log(`Discord Websocket requested heartbeat, sending heartbeat!`)
 
 			self:heartbeatAsync(true)
 		elseif operationCode == WebsocketOperationCodes.HeartbeatACK then
 			self.heartbeatAck = true
 			self.heartbeatPing = os.clock() - self.heartbeatClockTime :: number
 
-			self.reporter:debug(`HeartbeatACK - Ping: {self.heartbeatPing}`)
+			Logger.debug(`HeartbeatACK - Ping: {self.heartbeatPing}`)
 
 			if not self.identified then
 				self.identified = true
@@ -103,24 +104,24 @@ function DiscordShard.Prototype.observeWebsocketOperations(self: DiscordShard)
 				xpcall(function()
 					self:identifyAsync():await()
 				end, function(exception)
-					self.reporter:warn(`:identifyAsync call failed: '{exception}'`)
+					Logger.warn(`:identifyAsync call failed: '{exception}'`)
 
 					self.identified = nil
 				end)
 			end
 		elseif operationCode == WebsocketOperationCodes.Reconnect then
-			self.reporter:log(`Discord Websocket requested reconnect, attempting to reconnect!`)
+			Logger.log(`Discord Websocket requested reconnect, attempting to reconnect!`)
 
 			self:reconnectAsync()
 		elseif operationCode == WebsocketOperationCodes.InvalidSession then
-			self.reporter:warn(`Discord Websocket session invalid!`)
+			Logger.warn(`Discord Websocket session invalid!`)
 
 			if operationData == true then
-				self.reporter:log(`Attempting to reconnect from Invalid Session!`)
+				Logger.log(`Attempting to reconnect from Invalid Session!`)
 	
 				self:reconnectAsync()
 			else
-				self.reporter:warn(`Unrecoverable InvalidSession, attempting to destroy and recreate websocket.`)
+				Logger.warn(`Unrecoverable InvalidSession, attempting to destroy and recreate websocket.`)
 
 				self.discordWebsocket:disconnectAsync(tostring(1005)):await()
 
@@ -149,7 +150,7 @@ function DiscordShard.Prototype.heartbeatAsync(self: DiscordShard, ignoreHeartbe
 	return Future.try(function()
 		if not ignoreHeartbeatAck then
 			if not self.heartbeatAck then
-				self.reporter:warn(`Discord Websocket state has become zombified, attempting to reconnect!`)
+				Logger.warn(`Discord Websocket state has become zombified, attempting to reconnect!`)
 
 				self:reconnectAsync():await()
 			end
@@ -249,8 +250,6 @@ function DiscordShard.Interface.new(discordClient: any, shardId: number)
 
 		websocketUrl = "",
 
-		reporter = Console.new(`🖲️  DiscordShard {shardId}`),
-
 		heartbeatTask = nil,
 		resumeSessionId = nil,
 		dispatchSequence = nil,
@@ -271,8 +270,6 @@ export type DiscordShard = typeof(DiscordShard.Prototype) & {
 	discordClient: any,
 
 	websocketUrl: string,
-
-	reporter: Console.Console,
 
 	heartbeatTask: thread?,
 	resumeSessionId: string,

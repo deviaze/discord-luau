@@ -5,7 +5,6 @@ local Construct = require("../../Utils/Construct")
 
 local Future = require("../../Vendor/Future")
 local Signal = require("../../Vendor/Signal")
-local Console = require("../../Vendor/Console")
 
 local EventIn = require("../Middleware/EventIn")
 local EventOut = require("../Middleware/EventOut")
@@ -15,6 +14,8 @@ local WebsocketBuffer = require("WebsocketBuffer")
 local Net = require("../../Std/Net")
 local Serde = require("../../Std/Serde")
 local Task = require("../../Std/Task")
+
+local Logger = require("../../Singletons/Logger")
 
 local ZLIB_SUFFIX_START = "\120"
 local ZLIB_SUFFIX_END = "\84"
@@ -46,7 +47,7 @@ function DiscordWebsocket.Prototype.sendAsync(self: DiscordWebsocket, dataPacket
 		end)
 
 		if messageSendOperationSuccessful then
-			self.reporter:debug(`Discord Websocket Message Sent: {dataPacket[WebsocketOperationKeys.OperationCode]}`)
+			Logger.debug(`Discord Websocket Message Sent: {dataPacket[WebsocketOperationKeys.OperationCode]}`)
 		else
 			local resultType: string = typeof(result)
 			local messageResult
@@ -61,7 +62,7 @@ function DiscordWebsocket.Prototype.sendAsync(self: DiscordWebsocket, dataPacket
 				end
 			end
 
-			self.reporter:warn(`Socket error: {string.split(messageResult, "\n")[1]}, traceback:\n{traceback}`)
+			Logger.warn(`Socket error: {string.split(messageResult, "\n")[1]}, traceback:\n{traceback}`)
 
 			self.socketActive = false
 			self.onSocketDead:fire(self.socketInstance.closeCode)
@@ -115,7 +116,7 @@ function DiscordWebsocket.Prototype.disconnectAsync(self: DiscordWebsocket, clos
 			xpcall(function()
 				self.socketInstance.close(tonumber(closingCode))
 			end, function(source: string)
-				self.reporter:warn(`Failed to close websocket: '{source}'`)
+				Logger.warn(`Failed to close websocket: '{source}'`)
 			end)
 		end
 
@@ -135,8 +136,6 @@ function DiscordWebsocket.Interface.new()
 		onSocketDead = Signal.new(),
 		onOperationRecv = Signal.new(),
 		
-		reporter = Console.new("🪁 DiscordWebsocket"),
-
 		socketActiveChanged = Signal.new(),
 		socketActive = false,
 
@@ -153,7 +152,7 @@ function DiscordWebsocket.Interface.new()
 		local socketUrl = self.socketUrl and `[{self.socketUrl}]` or ""
 		local closeCode = self.socketInstance and self.socketInstance.closeCode and `[{self.socketInstance.closeCode}]` or ""
 
-		self.reporter:debug(`Discord Websocket {connectedLabel} {socketUrl} {closeCode}`)
+		Logger.debug(`Discord Websocket {connectedLabel} {socketUrl} {closeCode}`)
 	end)
 
 	self.onMessageRecv:connect(function(discordPacket)
@@ -176,12 +175,14 @@ function DiscordWebsocket.Interface.new()
 			local decodedDiscordPacket = Serde.decompress("zlib", encodedDiscordPacket)
 
 			dataPacket = Serde.decode("json", decodedDiscordPacket)
+
+			Logger.trace(`Recieved JSON: {decodedDiscordPacket}`)
 		end
 
 		if dataPacket[WebsocketOperationKeys.OperationCode] == WebsocketOperationCodes.Dispatch then
-			self.reporter:debug(`Discord Websocket Message Received: {dataPacket[WebsocketOperationKeys.OperationCode]} - {dataPacket[WebsocketOperationKeys.EventName]}`)
+			Logger.debug(`Discord Websocket Message Received: {dataPacket[WebsocketOperationKeys.OperationCode]} - {dataPacket[WebsocketOperationKeys.EventName]}`)
 		else
-			self.reporter:debug(`Discord Websocket Message Received: {dataPacket[WebsocketOperationKeys.OperationCode]}`)
+			Logger.debug(`Discord Websocket Message Received: {dataPacket[WebsocketOperationKeys.OperationCode]}`)
 		end
 
 		self.onOperationRecv:fire(
@@ -207,8 +208,6 @@ export type DiscordWebsocket = typeof(DiscordWebsocket.Prototype) & {
 	onMessageRecv: Signal.Signal<string>,
 	onSocketDead: Signal.Signal<number?>,
 	onOperationRecv: Signal.Signal<number, any, string?, number?>,
-
-	reporter: Console.Console,
 
 	socketUrl: string?,
 	socketInstance: Net.WebSocket?,

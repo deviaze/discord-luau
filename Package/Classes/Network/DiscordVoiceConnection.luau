@@ -8,13 +8,14 @@ local WebsocketEvents = require("../../Enums/WebsocketEvents")
 local Construct = require("../../Utils/Construct")
 
 local Future = require("../../Vendor/Future")
-local Console = require("../../Vendor/Console")
 local Signal = require("../../Vendor/Signal")
 
 local DiscordWebsocket = require("DiscordWebsocket")
 local DiscordUDP = require("DiscordUDP")
 
 local Task = require("../../Std/Task")
+
+local Logger = require("../../Singletons/Logger")
 
 local BASE_VOICE_CONNECTION_PORT = 1050
 
@@ -45,23 +46,23 @@ function DiscordVoiceConnection.Prototype.observeWebsocketErrors(self: DiscordVo
 		elseif closeCode == VoiceWebsocketCloseCodes.DecodeError then
 			self:reconnectAsync()
 		elseif closeCode == VoiceWebsocketCloseCodes.NotAuthenticated then
-			self.reporter:error(`Something has gone terribly wrong with Discord-Luau.. please create an issue! [{closeCode}]`)
+			Logger.critical(`Something has gone terribly wrong with Discord-Luau.. please create an issue! [{closeCode}]`)
 		elseif closeCode == VoiceWebsocketCloseCodes.AuthenticationFailed then
-			self.reporter:warn(`Failed to authenticate with the Discord Voice Gateway, is your token correct?`)
+			Logger.warn(`Failed to authenticate with the Discord Voice Gateway, is your token correct?`)
 		elseif closeCode == VoiceWebsocketCloseCodes.AlreadyAuthenticated then
 			self:reconnectAsync()
 		elseif closeCode == VoiceWebsocketCloseCodes.SessionTimedOut then
 			self:reconnectAsync()
 		elseif closeCode == VoiceWebsocketCloseCodes.ServerNotFound then
-			self.reporter:error(`Voice Websocket unable to find server; '{self.guildId}'`)
+			Logger.critical(`Voice Websocket unable to find server; '{self.guildId}'`)
 		elseif closeCode == VoiceWebsocketCloseCodes.UnknownProtocol then
-			self.reporter:error(`Something has gone terribly wrong with Discord-Luau.. please create an issue! [{closeCode}]`)
+			Logger.critical(`Something has gone terribly wrong with Discord-Luau.. please create an issue! [{closeCode}]`)
 		elseif closeCode == VoiceWebsocketCloseCodes.Disconnected then
-			self.reporter:debug(`Disconnected from Voice websocket`)
+			Logger.debug(`Disconnected from Voice websocket`)
 		elseif closeCode == VoiceWebsocketCloseCodes.VoiceServerCrashed then
 			self:reconnectAsync()
 		elseif closeCode == VoiceWebsocketCloseCodes.UnknownEncryptionMode then
-			self.reporter:error(`Something has gone terribly wrong with Discord-Luau.. please create an issue! [{closeCode}]`)
+			Logger.critical(`Something has gone terribly wrong with Discord-Luau.. please create an issue! [{closeCode}]`)
 		end
 	end)
 end
@@ -80,10 +81,10 @@ function DiscordVoiceConnection.Prototype.observeWebsocketOperations(self: Disco
 			self.heartbeatPing = os.clock() - self.heartbeatClockTime :: number
 
 			if operationData ~= self.heartbeatNonce then
-				self.reporter:warn(`HeartbeatACK - nonce recieved was incorrect`)
+				Logger.warn(`HeartbeatACK - nonce recieved was incorrect`)
 			end
 
-			self.reporter:debug(`HeartbeatACK - Ping: {self.heartbeatPing}`)
+			Logger.debug(`HeartbeatACK - Ping: {self.heartbeatPing}`)
 		elseif operationCode == VoiceWebsocketOperationCodes.Ready then
 			DiscordVoiceConnection.Internal.activeConnections += 1
 
@@ -132,7 +133,7 @@ function DiscordVoiceConnection.Prototype.heartbeatAsync(self: DiscordVoiceConne
 	return Future.try(function()
 		if not ignoreHeartbeatAck then
 			if not self.heartbeatAck then
-				self.reporter:warn(`Discord Websocket state has become zombified, attempting to reconnect!`)
+				Logger.warn(`Discord Websocket state has become zombified, attempting to reconnect!`)
 
 				self:reconnectAsync():await()
 			end
@@ -160,12 +161,6 @@ function DiscordVoiceConnection.Prototype.heartbeatIn(self: DiscordVoiceConnecti
 
 		self:heartbeatAsync():await()
 		self:heartbeatIn(milliseconds)
-	end)
-end
-
-function DiscordVoiceConnection.Prototype.identifyAsync(self: DiscordVoiceConnection)
-	return Future.try(function()
-		
 	end)
 end
 
@@ -282,8 +277,6 @@ function DiscordVoiceConnection.Interface.new(discordClient: any, id: string)
 		voiceWebsocket = DiscordWebsocket.new(),
 		discordClient = discordClient,
 
-		reporter = Console.new(`🖲️  DiscordVoiceConnection {id}`),
-
 		heartbeatTask = nil,
 		resumeSessionId = nil,
 		heartbeatInterval = nil,
@@ -300,8 +293,6 @@ export type DiscordVoiceConnection = typeof(DiscordVoiceConnection.Prototype) & 
 	voiceWebsocket: DiscordWebsocket.DiscordWebsocket,
 	voiceUDP: DiscordUDP.DiscordUDP,
 	discordClient: any,
-
-	reporter: Console.Console,
 
 	heartbeatTask: thread?,
 	resumeSessionId: string,

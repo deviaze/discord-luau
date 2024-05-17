@@ -22,9 +22,10 @@ local DiscordMessage = require("Internal/DiscordMessage")
 local DiscordApplication = require("Internal/DiscordApplication")
 local DiscordInteraction = require("Internal/DiscordInteraction")
 
-local Console = require("../Vendor/Console")
 local Future = require("../Vendor/Future")
 local Signal = require("../Vendor/Signal")
+
+local Logger = require("../Singletons/Logger")
 
 local Task = require("../Std/Task")
 
@@ -178,7 +179,7 @@ function DiscordClient.Prototype.connectAsync(self: DiscordClient)
 
 					self.onEvent:fire(DiscordEvents.GuildMemberUpdated, data)
 				else
-					self.reporter:debug(`Unknown Event: '{eventName}'`)
+					Logger.warn(`Unknown Event: '{eventName}'`)
 				end
 			end)
 		end
@@ -251,14 +252,6 @@ function DiscordClient.Prototype.on(self: DiscordClient, targetEventName: string
 end
 
 --[=[
-	@method setVerbose
-	@within DiscordClient
-]=]
-function DiscordClient.Prototype.setVerbose(self: DiscordClient, verbose: boolean)
-	Console.setGlobalLogLevel(verbose and Console.LogLevel.debug or Console.LogLevel.warn)
-end
-
---[=[
 	@function new
 	@within DiscordClient
 
@@ -287,12 +280,6 @@ function DiscordClient.Interface.new(discordSettings: DiscordSettings.DiscordSet
 			@within DiscordClient
 		]=]
 		discordCache = DiscordCache.new(),
-
-		--[=[
-			@prop reporter Reporter
-			@within DiscordClient
-		]=]
-		reporter = Console.new("🎮 DiscordClient"),
 
 		--[=[
 			@prop websocketUrl string
@@ -334,8 +321,6 @@ function DiscordClient.Interface.new(discordSettings: DiscordSettings.DiscordSet
 	return self
 end
 
-Console.setGlobalLogLevel(Console.LogLevel.warn)
-
 export type DiscordClient = typeof(DiscordClient.Prototype) & {
 	discordGateway: DiscordGateway.DiscordGateway,
 	discordSettings: DiscordSettings.DiscordSettings,
@@ -346,8 +331,6 @@ export type DiscordClient = typeof(DiscordClient.Prototype) & {
 	maxConcurrency: number,
 
 	onEvent: Signal.Signal<string, { [any]: any }?>,
-
-	reporter: Console.Console,
 
 	discordShards: { DiscordShard.DiscordShard },
 

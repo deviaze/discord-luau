@@ -2,7 +2,7 @@ local Task = require("../../Std/Task")
 
 local Construct = require("../../Utils/Construct")
 
-local Console = require("../../Vendor/Console")
+local Logger = require("../../Singletons/Logger")
 
 local DEFAULT_QUEUE_FREQUENCY = 0
 
@@ -57,7 +57,7 @@ function HTTPScheduler.Prototype.cycle(self: HTTPScheduler)
 	local values = { pcall(item) }
 
 	if not values[1] then
-		self.reporter:warn(`HTTP Shceduled call failed: '{values[2]}'`)
+		Logger.warn(`HTTP Shceduled call failed: '{values[2]}'`)
 	end
 
 	table.remove(self.processing, 1)
@@ -95,8 +95,6 @@ function HTTPScheduler.Interface.new(threadCount: number?): HTTPScheduler
 		processing = {},
 		workers = {},
 
-		reporter = Console.new("⚠️ HTTP Scheduler"),
-
 		limit = nil,
 		frequency = DEFAULT_QUEUE_FREQUENCY,
 	}, HTTPScheduler.Prototype)
@@ -112,8 +110,6 @@ export type HTTPScheduler = typeof(HTTPScheduler.Prototype) & {
 	stack: { () -> () },
 	processing: { boolean },
 	workers: { thread },
-
-	reporter: Console.Console,
 
 	limit: number?,
 	frequency: number,

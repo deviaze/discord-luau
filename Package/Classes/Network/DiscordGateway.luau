@@ -1,5 +1,4 @@
 local Future = require("../../Vendor/Future")
-local Console = require("../../Vendor/Console")
 
 local Construct = require("../../Utils/Construct")
 
@@ -12,6 +11,8 @@ local EventOut = require("../Middleware/EventOut")
 local Serde = require("../../Std/Serde")
 local Net = require("../../Std/Net")
 local Task = require("../../Std/Task")
+
+local Logger = require("../../Singletons/Logger")
 
 local DISCORD_API_VERSION = 9
 
@@ -71,10 +72,17 @@ function DiscordGateway.Prototype.requestAsync(self: DiscordGateway, api: string
 			local ratelimitApi = string.gsub(api, "%d+", "-")
 
 			if self.endpointRateLimits[ratelimitApi] and self.endpointRateLimits[ratelimitApi]:isConsumed() then
+				Logger.debug(`API '{api}' is ratelimited, waiting..`)
+
 				while self.endpointRateLimits[ratelimitApi]:isConsumed() do
 					Task.wait()
 				end
+
+				Logger.debug(`API '{api}' was ratelimited, resuming!`)
 			end
+
+			Logger.trace(`{method} request to '{BASE_DISCORD_APP_URL}/{BASE_DISCORD_APP_API_PREFIX}/v{DISCORD_API_VERSION}/{api}'!`)
+			Logger.trace(`{self.gatewayEventOut:processJSON(data)}`)
 
 			local networkResponse = Net.request({
 				url = `{BASE_DISCORD_APP_URL}/{BASE_DISCORD_APP_API_PREFIX}/v{DISCORD_API_VERSION}/{api}`,
@@ -86,7 +94,7 @@ function DiscordGateway.Prototype.requestAsync(self: DiscordGateway, api: string
 				body = data and Serde.encode("json", self.gatewayEventOut:processJSON(data))
 			})
 
-			self.reporter:debug(`{method} Async to '{api}': {networkResponse.statusCode} - {networkResponse.statusMessage}`)
+			Logger.debug(`{method} Async to '{api}': {networkResponse.statusCode} - {networkResponse.statusMessage}`)
 
 			local ratelimitLimit = tonumber(networkResponse.headers["x-ratelimit-limit"])
 			local ratelimitRemaining = tonumber(networkResponse.headers["x-ratelimit-remaining"])
@@ -103,7 +111,7 @@ function DiscordGateway.Prototype.requestAsync(self: DiscordGateway, api: string
 				self.endpointRateLimits[ratelimitApi]:setRemaining(ratelimitRemaining)
 				self.endpointRateLimits[ratelimitApi]:resetAfter(ratelimitResetAfter + 1)
 
-				self.reporter:debug(`{method} Rate Limit '{ratelimitLimit - ratelimitRemaining}/{ratelimitLimit}, resetting in {ratelimitResetAfter}'`)
+				Logger.debug(`{method} Rate Limit '{ratelimitLimit - ratelimitRemaining}/{ratelimitLimit}, resetting in {ratelimitResetAfter}'`)
 			end
 
 			if not networkResponse.ok then
@@ -111,6 +119,8 @@ function DiscordGateway.Prototype.requestAsync(self: DiscordGateway, api: string
 			end
 
 			if networkResponse.body == "" then
+				Logger.trace(`{method} request to '{BASE_DISCORD_APP_URL}/{BASE_DISCORD_APP_API_PREFIX}/v{DISCORD_API_VERSION}/{api}' returned nothing!`)
+
 				return
 			else
 				return self.gatewayEventIn:processJSON(Serde.decode("json", networkResponse.body))
@@ -174,13 +184,20 @@ function DiscordGateway.Interface.new(discordClient: any)
 		gatewayEventIn = EventIn.new(),
 		gatewayEventOut = EventOut.new(),
 
-		reporter = Console.new("🌉 DiscordGateway"),
-
-		endpointRateLimits = {} :: { [string]: HTTPRatelimit.HTTPRatelimit },
-		endpointCaches = {} :: { [string]: { [any]: any } }
+		endpointRateLimits = {},
+		endpointCaches = {}
 	}, DiscordGateway.Prototype)
 end
 
-export type DiscordGateway = typeof(DiscordGateway.Interface.new())
+export type DiscordGateway = typeof(DiscordGateway.Prototype) & {
+	discordClient: any,
+	discordScheduler: HTTPScheduler.HTTPScheduler,
+
+	gatewayEventIn: EventIn.EventIn,
+	gatewayEventOut: EventOut.EventOut,
+
+	endpointRateLimits: { [string]: HTTPRatelimit.HTTPRatelimit },
+	endpointCaches: { [string]: { [any]: any } }
+}
 
 return DiscordGateway.Interface
