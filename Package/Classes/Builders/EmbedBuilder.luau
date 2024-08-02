@@ -115,7 +115,7 @@ end
 	@return Builders.EmbedBuilder -- Returns the EmbedBuilder instance for method chaining.
 ]=]
 function EmbedBuilder.Prototype.setTimestamp(self: EmbedBuilder, epoch: number)
-	self.timestamp = Datetime.fromUniversalTime(epoch :: any):toIsoDate()
+	self.timestamp = Datetime.fromUnixTimestamp(epoch):toIsoDate()
 
 	return self
 end

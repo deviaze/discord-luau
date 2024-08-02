@@ -247,7 +247,7 @@ function DiscordInteraction.Interface.new(discordClient: any, jsonData: { [any]:
 		jsonData.member =
 			DiscordGuildMember.new(discordClient, jsonData.member.user.id, jsonData.guild.id, jsonData.member)
 
-		jsonData.member.user = nil
+		-- jsonData.member.user = nil -- i would like to dedicate my 5 hours from last week to this commented out line
 	end
 
 	if jsonData.appPermissions then
@@ -266,7 +266,11 @@ export type DiscordInteraction = typeof(DiscordInteraction.Prototype) & {
 
 	channel: DiscordChannel.DiscordChannel,
 	guild: DiscordGuild.DiscordGuild,
-	user: DiscordUser.DiscordUser,
+	-- user: DiscordUser.DiscordUser,
+	member: {
+		user: {avatar: string, discriminator: string, globalName: string, id: string, publicFlags: number, username: string},
+		roles: {[string]: string},
+	},
 
 	token: string,
 	applicationId: string,
